@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Habit Tracker">
+<meta name="theme-color" content="#0d1f15">
+<title>Habit Tracker</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0a1810;
+    color: #e0ebe2;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+  input { font-family: inherit; }
+  /* Better touch targets on mobile */
+  @media (max-width: 700px) {
+    .container { padding: 16px !important; }
+    .header-row { flex-direction: column; align-items: stretch !important; }
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap !important; }
+    .tabs button { flex-shrink: 0; }
+    .tracker-actions { flex-direction: column; align-items: stretch !important; }
+    .tracker-actions button { width: 100%; }
+    .heatmap { grid-template-columns: repeat(7, 1fr) !important; }
+    .color-guide { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body>
+<div class="container" style="max-width: 1100px; margin: 0 auto; padding: 24px;">
+  <div class="header-row" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <div id="todayDisplay" style="font-size: 13px; color: #6fae74; margin-bottom: 8px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">Today</div>
+      <div style="font-size: 28px; font-weight: 600; margin-bottom: 6px; color: #fff;" id="weekDisplay">Week 1 of 56</div>
+      <div style="font-size: 15px; color: #8ba391;" id="dateDisplay">April 26 - May 2</div>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button onclick="exportData()" style="padding: 12px 18px; background: transparent; color: #6fae74; border: 1px solid #2a4630; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">⬇ Export</button>
+      <button onclick="document.getElementById('importInput').click()" style="padding: 12px 18px; background: transparent; color: #6fae74; border: 1px solid #2a4630; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">⬆ Import</button>
+      <input id="importInput" type="file" accept=".json" style="display:none;" onchange="importData(event)">
+    </div>
+  </div>
+
+  <div class="tabs" style="display: flex; gap: 6px; margin-bottom: 24px; border-bottom: 1px solid #1f3525; padding-bottom: 12px; flex-wrap: wrap;">
+    <button id="tabTracker" onclick="switchTab('tracker')" style="padding: 12px 20px; border: none; background: #1f3525; color: #fff; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 15px;">Tracker</button>
+    <button id="tabTasks" onclick="switchTab('tasks')" style="padding: 12px 20px; border: none; background: transparent; color: #8ba391; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 15px;">Tasks</button>
+    <button id="tabOverview" onclick="switchTab('overview')" style="padding: 12px 20px; border: none; background: transparent; color: #8ba391; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 15px;">Yearly</button>
+    <button id="tabManage" onclick="switchTab('manage')" style="padding: 12px 20px; border: none; background: transparent; color: #8ba391; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 15px;">Habits</button>
+  </div>
+
+  <div id="trackerTab">
+    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 24px; border-radius: 10px; border: 1px solid #1f3525;">
+      <table id="habitTable" style="width: 100%; border-collapse: collapse; font-size: 15px;"></table>
+    </div>
+    <div class="tracker-actions" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 200px; padding: 18px; background: #16291d55; border: 1px solid #1f3525; border-radius: 10px; text-align: center;">
+        <div style="font-size: 12px; color: #8ba391; margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase;">Week completion</div>
+        <div id="completionPercent" style="font-size: 36px; font-weight: 600; color: #2d7a3a;">0%</div>
+      </div>
+      <button onclick="saveWeek(event)" style="padding: 14px 24px; background: #2d7a3a; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: 500; font-size: 15px;">Save Week</button>
+      <button onclick="prevWeek()" style="padding: 14px 20px; background: #1f3525; color: #fff; border: 1px solid #2a4630; border-radius: 10px; cursor: pointer; font-size: 15px;">← Prev</button>
+      <button onclick="nextWeek()" style="padding: 14px 20px; background: #1f3525; color: #fff; border: 1px solid #2a4630; border-radius: 10px; cursor: pointer; font-size: 15px;">Next →</button>
+    </div>
+  </div>
+
+  <div id="tasksTab" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <span style="font-size: 13px; color: #8ba391;">Sort:</span>
+        <button onclick="setSortMode('manual')" id="sortManual" style="padding: 8px 16px; background: #1f3525; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">Manual</button>
+        <button onclick="setSortMode('priority')" id="sortPriority" style="padding: 8px 16px; background: transparent; color: #8ba391; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 13px;">By Priority</button>
+      </div>
+      <button onclick="toggleAddTask()" style="padding: 10px 18px; background: #2d7a3a; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 14px;">+ Add Task</button>
+    </div>
+
+    <div id="addTaskForm" style="display: none; padding: 18px; background: #16291d55; border: 1px solid #1f3525; border-radius: 10px; margin-bottom: 18px;">
+      <input id="newTaskInput" type="text" placeholder="Task name" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid #2a4630; margin-bottom: 14px; font-size: 15px; background: #0d1f15; color: #fff;">
+      <div style="margin-bottom: 14px;">
+        <div style="font-size: 13px; color: #8ba391; margin-bottom: 8px;">Priority</div>
+        <div id="newTaskPriority" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+      </div>
+      <button onclick="addTask()" style="padding: 10px 18px; background: #2d7a3a; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 14px;">Add</button>
+      <button onclick="toggleAddTask()" style="padding: 10px 18px; background: transparent; color: #8ba391; border: 1px solid #2a4630; border-radius: 8px; cursor: pointer; font-size: 14px; margin-left: 8px;">Cancel</button>
+    </div>
+
+    <div id="tasksList" style="display: flex; flex-direction: column; gap: 12px;"></div>
+  </div>
+
+  <div id="overviewTab" style="display: none;">
+    <div id="heatmapGrid" class="heatmap" style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 24px;"></div>
+    <div style="padding: 18px; background: #16291d55; border: 1px solid #1f3525; border-radius: 10px; font-size: 14px; margin-bottom: 24px;">
+      <div style="margin-bottom: 14px; font-weight: 500; color: #fff; font-size: 15px;">Color guide</div>
+      <div class="color-guide" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 13px; color: #c2d4c7;">
+        <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 18px; height: 18px; background: #2d7a3a; border-radius: 4px;"></div><span>100% — Forest (highest)</span></div>
+        <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 18px; height: 18px; background: #639922; border-radius: 4px;"></div><span>80–99% — Green</span></div>
+        <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 18px; height: 18px; background: #BA7517; border-radius: 4px;"></div><span>70–79% — Yellow</span></div>
+        <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 18px; height: 18px; background: #D85A30; border-radius: 4px;"></div><span>50–69% — Orange</span></div>
+        <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 18px; height: 18px; background: #888780; border-radius: 4px;"></div><span>11–49% — Red</span></div>
+        <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 18px; height: 18px; background: #3a4a3d; border-radius: 4px;"></div><span>0–10% — Grey (lowest)</span></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 18px;">
+      <div style="font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 14px;">Statistics</div>
+      <div style="display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap;">
+        <button onclick="setChartRange('week')" id="rangeWeek" style="padding: 8px 16px; background: #1f3525; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">Weekly</button>
+        <button onclick="setChartRange('month')" id="rangeMonth" style="padding: 8px 16px; background: transparent; color: #8ba391; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 13px;">Monthly (4-week)</button>
+      </div>
+    </div>
+
+    <div style="background: #16291d55; border: 1px solid #1f3525; border-radius: 10px; padding: 18px; margin-bottom: 18px;">
+      <div style="font-size: 15px; font-weight: 500; color: #fff; margin-bottom: 14px;">Day-of-week performance</div>
+      <div id="dowChart" style="display: flex; align-items: flex-end; gap: 8px; height: 220px;"></div>
+      <div id="dowLabels" style="display: flex; gap: 8px; margin-top: 8px;"></div>
+    </div>
+
+    <div style="background: #16291d55; border: 1px solid #1f3525; border-radius: 10px; padding: 18px;">
+      <div style="font-size: 15px; font-weight: 500; color: #fff; margin-bottom: 14px;">Completion % over time</div>
+      <div style="position: relative; height: 220px;">
+        <svg id="lineChart" width="100%" height="220" style="overflow: visible;"></svg>
+      </div>
+      <div id="lineLabels" style="font-size: 12px; color: #8ba391; margin-top: 8px;"></div>
+    </div>
+  </div>
+
+  <div id="manageTab" style="display: none;">
+    <div style="margin-bottom: 24px;">
+      <div style="font-size: 17px; font-weight: 500; margin-bottom: 14px; color: #fff;">Your habits</div>
+      <div id="habitsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </div>
+    <div style="padding: 18px; background: #16291d55; border: 1px solid #1f3525; border-radius: 10px;">
+      <div style="font-size: 15px; font-weight: 500; margin-bottom: 14px; color: #fff;">Add new habit</div>
+      <input id="newHabitInput" type="text" placeholder="Habit name" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid #2a4630; margin-bottom: 14px; font-size: 15px; background: #0d1f15; color: #fff;">
+      <div style="margin-bottom: 14px;">
+        <div style="font-size: 13px; color: #8ba391; margin-bottom: 8px;">Days of week</div>
+        <div id="daysCheckboxes" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;"></div>
+      </div>
+      <button onclick="addHabit()" style="padding: 12px 20px; background: #2d7a3a; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 14px;">Add Habit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const YEAR_START = new Date(2026, 3, 26);
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const PRIORITIES = [
+  { id: 'p1', label: 'Critical', color: '#2d7a3a', rank: 1 },
+  { id: 'p2', label: 'High', color: '#639922', rank: 2 },
+  { id: 'p3', label: 'Medium', color: '#BA7517', rank: 3 },
+  { id: 'p4', label: 'Low', color: '#D85A30', rank: 4 },
+  { id: 'p5', label: 'Minor', color: '#888780', rank: 5 },
+  { id: 'p6', label: 'Whenever', color: '#3a4a3d', rank: 6 }
+];
+
+let currentWeek = 1;
+let habits = [];
+let checkedDays = {};
+let savedWeeks = {};
+let tasks = [];
+let selectedDays = [0];
+let newTaskPriorityId = 'p3';
+let sortMode = 'manual';
+let chartRange = 'week';
+
+function initApp() {
+  try {
+    const saved = localStorage.getItem('habitTrackerData');
+    if (saved) {
+      const data = JSON.parse(saved);
+      habits = data.habits || [];
+      checkedDays = data.checkedDays || {};
+      savedWeeks = data.savedWeeks || {};
+      tasks = data.tasks || [];
+    } else {
+      habits = [
+        { id: 1, name: 'Meditate', daysOfWeek: [0, 1, 2, 3, 4, 5, 6] },
+        { id: 2, name: 'Exercise', daysOfWeek: [0, 1, 2, 3, 4, 5, 6] },
+        { id: 3, name: 'Journal', daysOfWeek: [0, 1, 2, 3, 4, 5, 6] },
+        { id: 4, name: 'Meal Prep', daysOfWeek: [0] }
+      ];
+    }
+  } catch (e) {
+    console.error('Failed to load data:', e);
+    habits = [
+      { id: 1, name: 'Meditate', daysOfWeek: [0, 1, 2, 3, 4, 5, 6] }
+    ];
+  }
+  currentWeek = getCurrentWeek();
+  updateTodayDisplay();
+  renderAll();
+}
+
+function updateTodayDisplay() {
+  const today = new Date();
+  document.getElementById('todayDisplay').textContent = fullDayNames[today.getDay()] + ', ' + monthNames[today.getMonth()] + ' ' + today.getDate() + ', ' + today.getFullYear();
+}
+
+function getCurrentWeek() {
+  const today = new Date();
+  const diffTime = today - YEAR_START;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, Math.min(55, Math.floor(diffDays / 7)));
+}
+
+function getWeekStartDate(weekNum) {
+  const date = new Date(YEAR_START);
+  date.setDate(date.getDate() + weekNum * 7);
+  return date;
+}
+
+function getWeekDates(weekNum) {
+  const start = getWeekStartDate(weekNum);
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + i);
+    dates.push(date);
+  }
+  return dates;
+}
+
+function getCompletionPercentage(weekNum) {
+  const weekDates = getWeekDates(weekNum);
+  let total = 0;
+  let completed = 0;
+  weekDates.forEach(function(date, dayOfWeek) {
+    habits.forEach(function(habit) {
+      if (habit.daysOfWeek.indexOf(dayOfWeek) !== -1) {
+        total++;
+        const key = weekNum + '-' + dayOfWeek + '-' + habit.id;
+        if (checkedDays[key]) completed++;
+      }
+    });
+  });
+  return total === 0 ? 0 : Math.round((completed / total) * 100);
+}
+
+function getDayCompletion(weekNum, dayOfWeek) {
+  let total = 0;
+  let completed = 0;
+  habits.forEach(function(habit) {
+    if (habit.daysOfWeek.indexOf(dayOfWeek) !== -1) {
+      total++;
+      const key = weekNum + '-' + dayOfWeek + '-' + habit.id;
+      if (checkedDays[key]) completed++;
+    }
+  });
+  return total === 0 ? null : Math.round((completed / total) * 100);
+}
+
+function getWeekColor(weekNum) {
+  const pct = getCompletionPercentage(weekNum);
+  if (pct === 100) return '#2d7a3a';
+  if (pct >= 80) return '#639922';
+  if (pct >= 70) return '#BA7517';
+  if (pct >= 50) return '#D85A30';
+  if (pct > 0) return '#888780';
+  return '#3a4a3d';
+}
+
+function isToday(date) {
+  const today = new Date();
+  return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+}
+
+function renderAll() {
+  const weekDates = getWeekDates(currentWeek);
+  document.getElementById('weekDisplay').textContent = 'Week ' + (currentWeek + 1) + ' of 56';
+  const startStr = monthNames[weekDates[0].getMonth()].slice(0,3) + ' ' + weekDates[0].getDate();
+  const endStr = monthNames[weekDates[6].getMonth()].slice(0,3) + ' ' + weekDates[6].getDate() + ', ' + weekDates[6].getFullYear();
+  document.getElementById('dateDisplay').textContent = startStr + ' \u2013 ' + endStr;
+  renderTracker();
+  renderTasks();
+  renderOverview();
+  renderManage();
+  renderCharts();
+  updateCompletionPercent();
+}
+
+function renderTracker() {
+  const weekDates = getWeekDates(currentWeek);
+  const table = document.getElementById('habitTable');
+  table.innerHTML = '';
+  const headerRow = document.createElement('tr');
+  headerRow.style.background = '#16291d55';
+  headerRow.style.borderBottom = '1px solid #1f3525';
+  const habitHeader = document.createElement('th');
+  habitHeader.textContent = 'Habit';
+  habitHeader.style.cssText = 'text-align: left; padding: 16px 14px; font-weight: 600; min-width: 130px; color: #fff; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;';
+  headerRow.appendChild(habitHeader);
+  dayNames.forEach(function(day, i) {
+    const th = document.createElement('th');
+    const todayHighlight = isToday(weekDates[i]);
+    th.style.cssText = 'padding: 14px 10px; text-align: center; min-width: 64px;' + (todayHighlight ? ' background: #2d7a3a22; border-bottom: 2px solid #2d7a3a;' : '');
+    th.innerHTML = '<div style="color: ' + (todayHighlight ? '#6fae74' : '#fff') + '; font-size: 14px; font-weight: ' + (todayHighlight ? '700' : '600') + ';">' + day + '</div><div style="font-size: 12px; color: ' + (todayHighlight ? '#6fae74' : '#8ba391') + '; font-weight: 400; margin-top: 3px;">' + weekDates[i].getDate() + '</div>';
+    headerRow.appendChild(th);
+  });
+  table.appendChild(headerRow);
+  habits.forEach(function(habit, idx) {
+    const row = document.createElement('tr');
+    row.style.borderBottom = idx === habits.length - 1 ? 'none' : '1px solid #1f3525';
+    const nameCell = document.createElement('td');
+    nameCell.textContent = habit.name;
+    nameCell.style.cssText = 'padding: 16px 14px; font-weight: 500; color: #e0ebe2; font-size: 15px;';
+    row.appendChild(nameCell);
+    dayNames.forEach(function(_, dayOfWeek) {
+      const cell = document.createElement('td');
+      const todayHighlight = isToday(weekDates[dayOfWeek]);
+      cell.style.cssText = 'padding: 14px 10px; text-align: center;' + (todayHighlight ? ' background: #2d7a3a11;' : '');
+      if (habit.daysOfWeek.indexOf(dayOfWeek) !== -1) {
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.style.cssText = 'width: 26px; height: 26px; cursor: pointer; accent-color: #2d7a3a;';
+        const key = currentWeek + '-' + dayOfWeek + '-' + habit.id;
+        checkbox.checked = checkedDays[key] || false;
+        checkbox.onchange = function() {
+          checkedDays[key] = checkbox.checked;
+          saveData();
+          updateCompletionPercent();
+          renderOverview();
+          renderCharts();
+        };
+        cell.appendChild(checkbox);
+      } else {
+        cell.textContent = '\u2014';
+        cell.style.color = '#3a4a3d';
+        cell.style.fontSize = '15px';
+      }
+      row.appendChild(cell);
+    });
+    table.appendChild(row);
+  });
+}
+
+function getPriorityById(id) {
+  for (let i = 0; i < PRIORITIES.length; i++) {
+    if (PRIORITIES[i].id === id) return PRIORITIES[i];
+  }
+  return PRIORITIES[2];
+}
+
+function getSortedTasks() {
+  const arr = tasks.slice();
+  if (sortMode === 'priority') {
+    arr.sort(function(a, b) {
+      const ra = getPriorityById(a.priorityId).rank;
+      const rb = getPriorityById(b.priorityId).rank;
+      if (ra !== rb) return ra - rb;
+      return a.order - b.order;
+    });
+  } else {
+    arr.sort(function(a, b) { return a.order - b.order; });
+  }
+  return arr;
+}
+
+function renderTasks() {
+  const list = document.getElementById('tasksList');
+  list.innerHTML = '';
+  const sorted = getSortedTasks();
+  if (sorted.length === 0) {
+    list.innerHTML = '<div style="padding: 36px; text-align: center; color: #8ba391; background: #16291d33; border: 1px dashed #1f3525; border-radius: 10px; font-size: 14px;">No tasks yet. Tap "+ Add Task" to start.</div>';
+    renderPriorityPicker();
+    return;
+  }
+  sorted.forEach(function(task) {
+    const priority = getPriorityById(task.priorityId);
+    const taskDiv = document.createElement('div');
+    taskDiv.style.cssText = 'background: #16291d55; border: 1px solid #1f3525; border-left: 5px solid ' + priority.color + '; border-radius: 10px; overflow: hidden;';
+    const header = document.createElement('div');
+    header.style.cssText = 'padding: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = task.completed || false;
+    checkbox.style.cssText = 'width: 24px; height: 24px; cursor: pointer; accent-color: ' + priority.color + '; flex-shrink: 0;';
+    checkbox.onchange = function() {
+      task.completed = checkbox.checked;
+      saveData();
+      renderTasks();
+    };
+    const nameDiv = document.createElement('div');
+    nameDiv.style.cssText = 'flex: 1; min-width: 150px;';
+    const nameLine = document.createElement('div');
+    nameLine.textContent = task.name;
+    nameLine.style.cssText = 'font-weight: 500; font-size: 16px; color: ' + priority.color + ';' + (task.completed ? ' text-decoration: line-through; opacity: 0.5;' : '') + ' word-wrap: break-word;';
+    const priorityLabel = document.createElement('div');
+    priorityLabel.textContent = priority.label;
+    priorityLabel.style.cssText = 'font-size: 11px; color: #8ba391; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 5px;';
+    nameDiv.appendChild(nameLine);
+    nameDiv.appendChild(priorityLabel);
+    const subtaskCount = (task.subtasks || []).length;
+    const completedSub = (task.subtasks || []).filter(function(s){return s.completed;}).length;
+    if (subtaskCount > 0) {
+      const subSummary = document.createElement('div');
+      subSummary.textContent = completedSub + '/' + subtaskCount;
+      subSummary.style.cssText = 'font-size: 12px; color: #8ba391; padding: 5px 9px; background: #0d1f15; border-radius: 6px; flex-shrink: 0; display: inline-block; margin-top: 6px;';
+      nameDiv.appendChild(subSummary);
+    }
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap;';
+    if (sortMode === 'manual') {
+      const upBtn = document.createElement('button');
+      upBtn.textContent = '\u2191';
+      upBtn.style.cssText = 'padding: 9px 12px; background: #0d1f15; color: #8ba391; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 14px;';
+      upBtn.onclick = function() { moveTask(task.id, -1); };
+      const downBtn = document.createElement('button');
+      downBtn.textContent = '\u2193';
+      downBtn.style.cssText = 'padding: 9px 12px; background: #0d1f15; color: #8ba391; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 14px;';
+      downBtn.onclick = function() { moveTask(task.id, 1); };
+      actions.appendChild(upBtn);
+      actions.appendChild(downBtn);
+    }
+    const expandBtn = document.createElement('button');
+    expandBtn.textContent = task.expanded ? '\u25BC' : '\u25B6';
+    expandBtn.style.cssText = 'padding: 9px 12px; background: #0d1f15; color: #8ba391; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 12px;';
+    expandBtn.onclick = function() {
+      task.expanded = !task.expanded;
+      saveData();
+      renderTasks();
+    };
+    const editBtn = document.createElement('button');
+    editBtn.textContent = '\u270E';
+    editBtn.style.cssText = 'padding: 9px 12px; background: #0d1f15; color: #6fae74; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 12px;';
+    editBtn.onclick = function() {
+      task.editing = !task.editing;
+      task.expanded = true;
+      saveData();
+      renderTasks();
+    };
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '\u2715';
+    delBtn.style.cssText = 'padding: 9px 12px; background: #0d1f15; color: #d85a30; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 12px;';
+    delBtn.onclick = function() {
+      if (confirm('Delete "' + task.name + '"?')) {
+        tasks = tasks.filter(function(t){return t.id !== task.id;});
+        saveData();
+        renderTasks();
+      }
+    };
+    actions.appendChild(expandBtn);
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    header.appendChild(checkbox);
+    header.appendChild(nameDiv);
+    header.appendChild(actions);
+    taskDiv.appendChild(header);
+    if (task.expanded) {
+      const details = document.createElement('div');
+      details.style.cssText = 'padding: 16px; padding-top: 0; border-top: 1px solid #1f3525;';
+      if (task.editing) {
+        const editName = document.createElement('input');
+        editName.type = 'text';
+        editName.value = task.name;
+        editName.style.cssText = 'width: 100%; padding: 11px; border-radius: 6px; border: 1px solid #2a4630; background: #0d1f15; color: #fff; margin-bottom: 12px; box-sizing: border-box; font-size: 14px;';
+        editName.onchange = function() { task.name = editName.value; saveData(); };
+        details.appendChild(editName);
+        const priLabel = document.createElement('div');
+        priLabel.textContent = 'Priority';
+        priLabel.style.cssText = 'font-size: 12px; color: #8ba391; margin: 12px 0 8px;';
+        details.appendChild(priLabel);
+        const priRow = document.createElement('div');
+        priRow.style.cssText = 'display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 14px;';
+        PRIORITIES.forEach(function(p) {
+          const pBtn = document.createElement('button');
+          pBtn.textContent = p.label;
+          const isActive = task.priorityId === p.id;
+          pBtn.style.cssText = 'padding: 9px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; border: 1px solid ' + p.color + '; background: ' + (isActive ? p.color : 'transparent') + '; color: ' + (isActive ? '#fff' : p.color) + ';';
+          pBtn.onclick = function() {
+            task.priorityId = p.id;
+            saveData();
+            renderTasks();
+          };
+          priRow.appendChild(pBtn);
+        });
+        details.appendChild(priRow);
+        const doneBtn = document.createElement('button');
+        doneBtn.textContent = 'Done editing';
+        doneBtn.style.cssText = 'padding: 9px 16px; background: #2d7a3a; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;';
+        doneBtn.onclick = function() { task.editing = false; saveData(); renderTasks(); };
+        details.appendChild(doneBtn);
+      }
+      const subHeader = document.createElement('div');
+      subHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin: 14px 0 10px;';
+      subHeader.innerHTML = '<div style="font-size: 12px; color: #8ba391; text-transform: uppercase; letter-spacing: 0.5px;">Subtasks / Phases</div>';
+      const addSubBtn = document.createElement('button');
+      addSubBtn.textContent = '+ Add';
+      addSubBtn.style.cssText = 'padding: 7px 12px; background: transparent; color: #6fae74; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 12px;';
+      addSubBtn.onclick = function() {
+        if (!task.subtasks) task.subtasks = [];
+        task.subtasks.push({ id: Date.now(), name: 'New phase', completed: false });
+        saveData();
+        renderTasks();
+      };
+      subHeader.appendChild(addSubBtn);
+      details.appendChild(subHeader);
+      const subList = document.createElement('div');
+      subList.style.cssText = 'display: flex; flex-direction: column; gap: 7px;';
+      (task.subtasks || []).forEach(function(sub) {
+        const subRow = document.createElement('div');
+        subRow.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: #0d1f15; border-radius: 6px;';
+        const subCb = document.createElement('input');
+        subCb.type = 'checkbox';
+        subCb.checked = sub.completed;
+        subCb.style.cssText = 'width: 20px; height: 20px; cursor: pointer; accent-color: ' + priority.color + ';';
+        subCb.onchange = function() { sub.completed = subCb.checked; saveData(); renderTasks(); };
+        const subInput = document.createElement('input');
+        subInput.type = 'text';
+        subInput.value = sub.name;
+        subInput.style.cssText = 'flex: 1; padding: 7px 9px; background: transparent; border: none; color: ' + (sub.completed ? '#8ba391' : '#fff') + '; font-size: 14px;' + (sub.completed ? ' text-decoration: line-through;' : '');
+        subInput.onchange = function() { sub.name = subInput.value; saveData(); };
+        const subDel = document.createElement('button');
+        subDel.textContent = '\u2715';
+        subDel.style.cssText = 'padding: 7px 11px; background: transparent; color: #d85a30; border: none; cursor: pointer; font-size: 13px;';
+        subDel.onclick = function() {
+          task.subtasks = task.subtasks.filter(function(s){return s.id !== sub.id;});
+          saveData();
+          renderTasks();
+        };
+        subRow.appendChild(subCb);
+        subRow.appendChild(subInput);
+        subRow.appendChild(subDel);
+        subList.appendChild(subRow);
+      });
+      details.appendChild(subList);
+      taskDiv.appendChild(details);
+    }
+    list.appendChild(taskDiv);
+  });
+  renderPriorityPicker();
+}
+
+function renderPriorityPicker() {
+  const picker = document.getElementById('newTaskPriority');
+  if (!picker) return;
+  picker.innerHTML = '';
+  PRIORITIES.forEach(function(p) {
+    const btn = document.createElement('button');
+    btn.textContent = p.label;
+    const isActive = newTaskPriorityId === p.id;
+    btn.style.cssText = 'padding: 9px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; border: 1px solid ' + p.color + '; background: ' + (isActive ? p.color : 'transparent') + '; color: ' + (isActive ? '#fff' : p.color) + ';';
+    btn.onclick = function() { newTaskPriorityId = p.id; renderPriorityPicker(); };
+    picker.appendChild(btn);
+  });
+}
+
+function moveTask(taskId, direction) {
+  const sorted = getSortedTasks();
+  let idx = -1;
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].id === taskId) { idx = i; break; }
+  }
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= sorted.length) return;
+  const a = sorted[idx];
+  const b = sorted[newIdx];
+  const tmp = a.order;
+  a.order = b.order;
+  b.order = tmp;
+  saveData();
+  renderTasks();
+}
+
+function setSortMode(mode) {
+  sortMode = mode;
+  document.getElementById('sortManual').style.background = mode === 'manual' ? '#1f3525' : 'transparent';
+  document.getElementById('sortManual').style.color = mode === 'manual' ? '#fff' : '#8ba391';
+  document.getElementById('sortManual').style.border = mode === 'manual' ? 'none' : '1px solid #2a4630';
+  document.getElementById('sortPriority').style.background = mode === 'priority' ? '#1f3525' : 'transparent';
+  document.getElementById('sortPriority').style.color = mode === 'priority' ? '#fff' : '#8ba391';
+  document.getElementById('sortPriority').style.border = mode === 'priority' ? 'none' : '1px solid #2a4630';
+  renderTasks();
+}
+
+function toggleAddTask() {
+  const form = document.getElementById('addTaskForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  if (form.style.display === 'block') {
+    document.getElementById('newTaskInput').focus();
+    renderPriorityPicker();
+  }
+}
+
+function addTask() {
+  const input = document.getElementById('newTaskInput');
+  if (input.value.trim()) {
+    let maxOrder = 0;
+    tasks.forEach(function(t) { if (t.order > maxOrder) maxOrder = t.order; });
+    tasks.push({
+      id: Date.now(),
+      name: input.value.trim(),
+      priorityId: newTaskPriorityId,
+      completed: false,
+      subtasks: [],
+      order: maxOrder + 1,
+      expanded: false,
+      editing: false
+    });
+    input.value = '';
+    newTaskPriorityId = 'p3';
+    saveData();
+    toggleAddTask();
+    renderTasks();
+  }
+}
+
+function setChartRange(range) {
+  chartRange = range;
+  document.getElementById('rangeWeek').style.background = range === 'week' ? '#1f3525' : 'transparent';
+  document.getElementById('rangeWeek').style.color = range === 'week' ? '#fff' : '#8ba391';
+  document.getElementById('rangeWeek').style.border = range === 'week' ? 'none' : '1px solid #2a4630';
+  document.getElementById('rangeMonth').style.background = range === 'month' ? '#1f3525' : 'transparent';
+  document.getElementById('rangeMonth').style.color = range === 'month' ? '#fff' : '#8ba391';
+  document.getElementById('rangeMonth').style.border = range === 'month' ? 'none' : '1px solid #2a4630';
+  renderCharts();
+}
+
+function renderCharts() {
+  renderDayOfWeekChart();
+  renderLineChart();
+}
+
+function renderDayOfWeekChart() {
+  const chart = document.getElementById('dowChart');
+  const labels = document.getElementById('dowLabels');
+  if (!chart) return;
+  chart.innerHTML = '';
+  labels.innerHTML = '';
+  const dowTotals = [0, 0, 0, 0, 0, 0, 0];
+  const dowCounts = [0, 0, 0, 0, 0, 0, 0];
+  for (let w = 0; w <= currentWeek; w++) {
+    for (let d = 0; d < 7; d++) {
+      const pct = getDayCompletion(w, d);
+      if (pct !== null) {
+        dowTotals[d] += pct;
+        dowCounts[d]++;
+      }
+    }
+  }
+  const dowAvgs = dowTotals.map(function(t, i) { return dowCounts[i] === 0 ? 0 : Math.round(t / dowCounts[i]); });
+  let maxVal = 100;
+  dowAvgs.forEach(function(v) { if (v > maxVal) maxVal = v; });
+  dowAvgs.forEach(function(avg, i) {
+    const barWrap = document.createElement('div');
+    barWrap.style.cssText = 'flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 5px;';
+    const valLabel = document.createElement('div');
+    valLabel.textContent = avg + '%';
+    valLabel.style.cssText = 'font-size: 12px; color: #c2d4c7;';
+    const bar = document.createElement('div');
+    const heightPct = (avg / maxVal) * 100;
+    let color = '#3a4a3d';
+    if (avg === 100) color = '#2d7a3a';
+    else if (avg >= 80) color = '#639922';
+    else if (avg >= 70) color = '#BA7517';
+    else if (avg >= 50) color = '#D85A30';
+    else if (avg > 0) color = '#888780';
+    bar.style.cssText = 'width: 80%; height: ' + Math.max(heightPct, 2) + '%; background: ' + color + '; border-radius: 6px 6px 0 0; transition: height 0.3s;';
+    barWrap.appendChild(valLabel);
+    barWrap.appendChild(bar);
+    chart.appendChild(barWrap);
+    const label = document.createElement('div');
+    label.textContent = dayNames[i];
+    label.style.cssText = 'flex: 1; text-align: center; font-size: 13px; color: #8ba391;';
+    labels.appendChild(label);
+  });
+}
+
+function renderLineChart() {
+  const svg = document.getElementById('lineChart');
+  const labelsDiv = document.getElementById('lineLabels');
+  if (!svg) return;
+  svg.innerHTML = '';
+  labelsDiv.innerHTML = '';
+  const points = [];
+  if (chartRange === 'week') {
+    for (let w = 0; w <= currentWeek; w++) {
+      points.push({ label: 'W' + (w + 1), value: getCompletionPercentage(w) });
+    }
+  } else {
+    const numMonths = Math.ceil((currentWeek + 1) / 4);
+    for (let m = 0; m < numMonths; m++) {
+      let total = 0, count = 0;
+      for (let w = m * 4; w < (m + 1) * 4 && w <= currentWeek; w++) {
+        total += getCompletionPercentage(w);
+        count++;
+      }
+      points.push({ label: 'M' + (m + 1), value: count > 0 ? Math.round(total / count) : 0 });
+    }
+  }
+  if (points.length === 0) return;
+  const width = svg.clientWidth || 800;
+  const height = 220;
+  const padding = { top: 20, right: 20, bottom: 30, left: 44 };
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (innerHeight * i / 4);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', padding.left);
+    line.setAttribute('y1', y);
+    line.setAttribute('x2', width - padding.right);
+    line.setAttribute('y2', y);
+    line.setAttribute('stroke', '#1f3525');
+    line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', padding.left - 8);
+    text.setAttribute('y', y + 4);
+    text.setAttribute('text-anchor', 'end');
+    text.setAttribute('fill', '#8ba391');
+    text.setAttribute('font-size', '11');
+    text.textContent = (100 - i * 25) + '%';
+    svg.appendChild(text);
+  }
+  const stepX = points.length === 1 ? 0 : innerWidth / (points.length - 1);
+  let pathD = '';
+  points.forEach(function(pt, i) {
+    const x = padding.left + i * stepX;
+    const y = padding.top + (innerHeight * (1 - pt.value / 100));
+    pathD += (i === 0 ? 'M' : 'L') + x + ',' + y;
+  });
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', pathD);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#2d7a3a');
+  path.setAttribute('stroke-width', '3');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(path);
+  points.forEach(function(pt, i) {
+    const x = padding.left + i * stepX;
+    const y = padding.top + (innerHeight * (1 - pt.value / 100));
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', x);
+    c.setAttribute('cy', y);
+    c.setAttribute('r', '5');
+    c.setAttribute('fill', '#2d7a3a');
+    c.setAttribute('stroke', '#0d1f15');
+    c.setAttribute('stroke-width', '2');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = pt.label + ': ' + pt.value + '%';
+    c.appendChild(title);
+    svg.appendChild(c);
+  });
+  if (points.length <= 14) {
+    labelsDiv.style.cssText = 'font-size: 12px; color: #8ba391; margin-top: 8px; display: flex; justify-content: space-between; padding: 0 ' + padding.right + 'px 0 ' + padding.left + 'px;';
+    points.forEach(function(pt) {
+      const span = document.createElement('span');
+      span.textContent = pt.label;
+      labelsDiv.appendChild(span);
+    });
+  } else {
+    labelsDiv.style.cssText = 'font-size: 12px; color: #8ba391; margin-top: 8px; text-align: center;';
+    labelsDiv.textContent = points[0].label + ' \u2192 ' + points[points.length - 1].label;
+  }
+}
+
+function renderOverview() {
+  const grid = document.getElementById('heatmapGrid');
+  grid.innerHTML = '';
+  for (let w = 0; w < 56; w++) {
+    const btn = document.createElement('button');
+    btn.textContent = 'W' + (w + 1);
+    const isCurrent = w === currentWeek;
+    btn.style.cssText = 'width: 100%; aspect-ratio: 1; border: ' + (isCurrent ? '2px solid #fff' : '1px solid #1f3525') + '; border-radius: 8px; background: ' + getWeekColor(w) + '; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff;';
+    btn.onclick = (function(weekNum) { return function() { currentWeek = weekNum; switchTab('tracker'); renderAll(); }; })(w);
+    grid.appendChild(btn);
+  }
+}
+
+function renderManage() {
+  const list = document.getElementById('habitsList');
+  list.innerHTML = '';
+  habits.forEach(function(habit) {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding: 16px; background: #16291d55; border: 1px solid #1f3525; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;';
+    if (habit.editing) {
+      const editArea = document.createElement('div');
+      editArea.style.cssText = 'flex: 1; min-width: 220px;';
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = habit.name;
+      nameInput.style.cssText = 'width: 100%; padding: 11px; border-radius: 6px; border: 1px solid #2a4630; background: #0d1f15; color: #fff; margin-bottom: 11px; box-sizing: border-box; font-size: 14px;';
+      nameInput.onchange = function() { habit.name = nameInput.value; saveData(); };
+      editArea.appendChild(nameInput);
+      const daysWrap = document.createElement('div');
+      daysWrap.style.cssText = 'display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;';
+      dayNames.forEach(function(dn, i) {
+        const cell = document.createElement('label');
+        const isOn = habit.daysOfWeek.indexOf(i) !== -1;
+        cell.style.cssText = 'display: flex; align-items: center; justify-content: center; padding: 9px; background: ' + (isOn ? '#2d7a3a33' : '#0d1f15') + '; border: 1px solid ' + (isOn ? '#2d7a3a' : '#2a4630') + '; border-radius: 6px; cursor: pointer; font-size: 12px; color: ' + (isOn ? '#fff' : '#8ba391') + ';';
+        cell.textContent = dn;
+        cell.onclick = function(e) {
+          e.preventDefault();
+          if (isOn) {
+            habit.daysOfWeek = habit.daysOfWeek.filter(function(d){return d !== i;});
+          } else {
+            habit.daysOfWeek = habit.daysOfWeek.concat([i]);
+          }
+          saveData();
+          renderManage();
+        };
+        daysWrap.appendChild(cell);
+      });
+      editArea.appendChild(daysWrap);
+      div.appendChild(editArea);
+      const doneBtn = document.createElement('button');
+      doneBtn.textContent = 'Done';
+      doneBtn.style.cssText = 'padding: 11px 18px; background: #2d7a3a; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;';
+      doneBtn.onclick = function() {
+        habit.editing = false;
+        saveData();
+        renderAll();
+      };
+      div.appendChild(doneBtn);
+    } else {
+      const info = document.createElement('div');
+      info.style.cssText = 'flex: 1; min-width: 0;';
+      const name = document.createElement('div');
+      name.textContent = habit.name;
+      name.style.cssText = 'font-weight: 500; margin-bottom: 5px; color: #fff; font-size: 16px;';
+      const days = document.createElement('div');
+      days.textContent = dayNames.filter(function(_, i){return habit.daysOfWeek.indexOf(i) !== -1;}).join(', ');
+      days.style.cssText = 'font-size: 13px; color: #8ba391;';
+      info.appendChild(name);
+      info.appendChild(days);
+      div.appendChild(info);
+      const btnGroup = document.createElement('div');
+      btnGroup.style.cssText = 'display: flex; gap: 7px;';
+      const editBtn = document.createElement('button');
+      editBtn.textContent = 'Edit';
+      editBtn.style.cssText = 'padding: 11px 18px; background: transparent; color: #6fae74; border: 1px solid #2a4630; border-radius: 6px; cursor: pointer; font-size: 13px;';
+      editBtn.onclick = function() { habit.editing = true; renderManage(); };
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete';
+      delBtn.style.cssText = 'padding: 11px 18px; background: transparent; color: #d85a30; border: 1px solid #d85a3055; border-radius: 6px; cursor: pointer; font-size: 13px;';
+      delBtn.onclick = function() {
+        if (confirm('Delete habit "' + habit.name + '"? This won\'t erase past tracking data.')) {
+          habits = habits.filter(function(h){return h.id !== habit.id;});
+          saveData();
+          renderAll();
+        }
+      };
+      btnGroup.appendChild(editBtn);
+      btnGroup.appendChild(delBtn);
+      div.appendChild(btnGroup);
+    }
+    list.appendChild(div);
+  });
+  const daysDiv = document.getElementById('daysCheckboxes');
+  daysDiv.innerHTML = '';
+  dayNames.forEach(function(day, i) {
+    const label = document.createElement('label');
+    const isOn = selectedDays.indexOf(i) !== -1;
+    label.style.cssText = 'display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; cursor: pointer; padding: 11px; background: ' + (isOn ? '#2d7a3a33' : '#0d1f15') + '; border: 1px solid ' + (isOn ? '#2d7a3a' : '#2a4630') + '; border-radius: 8px; color: ' + (isOn ? '#fff' : '#c2d4c7') + ';';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = isOn;
+    cb.style.cssText = 'width: 17px; height: 17px; accent-color: #2d7a3a; cursor: pointer;';
+    cb.onchange = function() {
+      if (cb.checked) selectedDays.push(i);
+      else selectedDays = selectedDays.filter(function(d){return d !== i;});
+      renderManage();
+    };
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(day));
+    daysDiv.appendChild(label);
+  });
+}
+
+function updateCompletionPercent() {
+  const pct = getCompletionPercentage(currentWeek);
+  const el = document.getElementById('completionPercent');
+  el.textContent = pct + '%';
+  el.style.color = getWeekColor(currentWeek);
+}
+
+function switchTab(tab) {
+  ['tracker', 'tasks', 'overview', 'manage'].forEach(function(t) {
+    document.getElementById(t + 'Tab').style.display = tab === t ? 'block' : 'none';
+    const btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+    btn.style.background = tab === t ? '#1f3525' : 'transparent';
+    btn.style.color = tab === t ? '#fff' : '#8ba391';
+  });
+  if (tab === 'overview') renderCharts();
+}
+
+function saveWeek(e) {
+  const pct = getCompletionPercentage(currentWeek);
+  savedWeeks[currentWeek] = { percentage: pct, date: new Date().toISOString() };
+  saveData();
+  const btn = e.target;
+  const oldText = btn.textContent;
+  btn.textContent = '\u2713 Saved';
+  setTimeout(function() { btn.textContent = oldText; }, 1500);
+}
+
+function prevWeek() { currentWeek = Math.max(0, currentWeek - 1); renderAll(); }
+function nextWeek() { currentWeek = Math.min(55, currentWeek + 1); renderAll(); }
+
+function addHabit() {
+  const input = document.getElementById('newHabitInput');
+  if (input.value.trim()) {
+    habits.push({ id: Date.now(), name: input.value, daysOfWeek: selectedDays.length > 0 ? selectedDays.slice() : [0] });
+    input.value = '';
+    selectedDays = [0];
+    saveData();
+    renderAll();
+  }
+}
+
+function exportData() {
+  const data = { habits: habits, checkedDays: checkedDays, savedWeeks: savedWeeks, tasks: tasks, exportDate: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'habit-tracker-' + new Date().toISOString().split('T')[0] + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!confirm('Import this data? Your current data will be replaced.')) return;
+      habits = data.habits || [];
+      checkedDays = data.checkedDays || {};
+      savedWeeks = data.savedWeeks || {};
+      tasks = data.tasks || [];
+      saveData();
+      renderAll();
+      alert('Data imported successfully.');
+    } catch (err) {
+      alert('Failed to import: file is not valid JSON.');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function saveData() {
+  try {
+    localStorage.setItem('habitTrackerData', JSON.stringify({ habits: habits, checkedDays: checkedDays, savedWeeks: savedWeeks, tasks: tasks }));
+  } catch (e) {
+    console.error('Failed to save:', e);
+  }
+}
+
+initApp();
+</script>
+</body>
+</html>
